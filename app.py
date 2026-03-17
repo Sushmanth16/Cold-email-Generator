@@ -1,52 +1,25 @@
-import string
-import random
-from flask import Flask, request, redirect, render_template, jsonify
+import streamlit as st
+from utils import extract_skills, retrieve_portfolio_links, generate_email
 
-app = Flask(__name__)
+st.set_page_config(page_title="Cold Email Generator", page_icon="📧")
+st.title("Cold Email Generator")
 
-url_store = {}
+job_description = st.text_area("Paste Job Description", height=250)
 
-def generate_code(length=6):
-    chars = string.ascii_letters + string.digits
-    return ''.join(random.choice(chars) for _ in range(length))
+if st.button("Generate Email"):
+    if not job_description.strip():
+        st.warning("Please paste a job description.")
+    else:
+        skills = extract_skills(job_description)
+        links = retrieve_portfolio_links(skills)
+        email = generate_email(job_description, skills, links)
 
-@app.route("/", methods=["GET", "POST"])
-def home():
-    short_url = None
-    if request.method == "POST":
-        original_url = request.form.get("url")
-        if original_url:
-            code = generate_code()
-            while code in url_store:
-                code = generate_code()
-            url_store[code] = original_url
-            short_url = request.host_url + code
-    return render_template("index.html", short_url=short_url)
+        st.subheader("Extracted Skills")
+        st.write(skills)
 
-@app.route("/api/shorten", methods=["POST"])
-def shorten():
-    data = request.get_json()
-    original_url = data.get("url")
-    if not original_url:
-        return jsonify({"error": "URL is required"}), 400
+        st.subheader("Relevant Portfolio Links")
+        for link in links:
+            st.write(f"- {link}")
 
-    code = generate_code()
-    while code in url_store:
-        code = generate_code()
-
-    url_store[code] = original_url
-    return jsonify({
-        "original_url": original_url,
-        "short_code": code,
-        "short_url": request.host_url + code
-    })
-
-@app.route("/<code>")
-def redirect_to_url(code):
-    original_url = url_store.get(code)
-    if original_url:
-        return redirect(original_url)
-    return "Short URL not found", 404
-
-if __name__ == "__main__":
-    app.run(debug=True)
+        st.subheader("Generated Email")
+        st.code(email, language="text")
